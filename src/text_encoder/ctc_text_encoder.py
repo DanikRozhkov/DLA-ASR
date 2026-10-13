@@ -1,4 +1,6 @@
+import math
 import re
+from collections import defaultdict
 from string import ascii_lowercase
 
 import torch
@@ -8,6 +10,18 @@ import torch
 # Note: think about metrics and encoder
 # The design can be remarkably improved
 # to calculate stuff more efficiently and prettier
+
+NEG_INF = float("-inf")
+
+
+def _log_add(a: float, b: float) -> float:
+    if a == NEG_INF:
+        return b
+    if b == NEG_INF:
+        return a
+    if a < b:
+        a, b = b, a
+    return a + math.log1p(math.exp(b - a))
 
 
 class CTCTextEncoder:
@@ -59,7 +73,64 @@ class CTCTextEncoder:
         return "".join([self.ind2char[int(ind)] for ind in inds]).strip()
 
     def ctc_decode(self, inds) -> str:
-        pass  # TODO
+        res = []
+        counter = 0
+        while counter < len(inds):
+            while counter < len(inds) - 1 and inds[counter] == inds[counter + 1]:
+                counter += 1
+            res.append(inds[counter])
+            counter += 1
+        return "".join([self.ind2char[int(i)] if i != 0 else "" for i in res])
+
+    def ctc_beam_search(self, log_probs, beam_width) -> str:
+        """
+        CTC prefix beam search decoding
+
+        Args:
+            log_probs (Tensor): log probabilities, shape (timestamps, vocab_size)
+            beam_width (int): number of candidate prefixes keeps at each step
+        Returns:
+            best_prefix (str): decoded best hypothesis
+        """
+        T, V = log_probs.shape
+        blank_idx = self.char2ind[self.EMPTY_TOK]
+        beam = {"": (0.0, NEG_INF)}
+
+        for t in range(T):
+            frame = log_probs[t]
+            new_beam = defaultdict(lambda: (NEG_INF, NEG_INF))
+            for prefix, (p_b, p_nb) in beam.items():
+                last_char = prefix[-1] if prefix else None
+                p_total = _log_add(p_b, p_nb)
+                for c_idx in range(V):
+                    log_p_c = float(frame[c_idx])
+                    c = self.ind2char[c_idx]
+                    if c_idx == blank_idx:
+                        old_b, old_nb = new_beam[prefix]
+                        new_beam[prefix] = (_log_add(old_b, p_total + log_p_c), old_nb)
+                    elif c == last_char:
+                        old_b, old_nb = new_beam[prefix + c]
+                        new_beam[prefix + c] = (old_b, _log_add(old_nb, p_b + log_p_c))
+                        old_b2, old_nb2 = new_beam[prefix]
+                        new_beam[prefix] = (old_b2, _log_add(old_nb2, p_nb + log_p_c))
+                    else:
+                        old_b, old_nb = new_beam[prefix + c]
+                        new_beam[prefix + c] = (
+                            old_b,
+                            _log_add(old_nb, p_total + log_p_c),
+                        )
+            beam = dict(
+                sorted(
+                    new_beam.items(),
+                    key=lambda item: _log_add(item[1][0], item[1][1]),
+                    reverse=True,
+                )[:beam_width]
+            )
+
+        best_prefix = max(
+            beam.items(), key=lambda item: _log_add(item[1][0], item[1][1])
+        )[0]
+        return best_prefix
 
     @staticmethod
     def normalize_text(text: str):
