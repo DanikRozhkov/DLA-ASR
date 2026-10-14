@@ -1,0 +1,11 @@
+defaults:
+  - writer: wandb
+  - transforms: example_only_instance
+  - _self_
+
+writer:
+  run_name: "augmentations_demo"
+
+audio_dir: "data/datasets/librispeech/dev-clean"
+audio_glob: "*.flac"
+n_examples: 3

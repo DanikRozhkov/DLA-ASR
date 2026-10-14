@@ -2,6 +2,7 @@ import io
 
 import matplotlib.pyplot as plt
 import PIL
+import torch
 from torchvision.transforms import ToTensor
 
 plt.switch_backend("agg")  # fix RuntimeError: main thread is not in main loop
@@ -60,6 +61,28 @@ def plot_spectrogram(spectrogram, name=None):
     buf.seek(0)
 
     # convert buffer to Tensor
+    image = ToTensor()(PIL.Image.open(buf))
+
+    plt.close()
+
+    return image
+
+
+def plot_waveform(audio, sample_rate, name=None):
+    audio = audio.detach().cpu()
+    if audio.dim() > 1:
+        audio = audio[0]
+    time_axis = torch.arange(audio.shape[0]) / sample_rate
+
+    plt.figure(figsize=(20, 5))
+    plt.plot(time_axis, audio.numpy())
+    plt.xlabel("Time - seconds")
+    plt.grid()
+    plt.title(name)
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+
     image = ToTensor()(PIL.Image.open(buf))
 
     plt.close()

@@ -81,10 +81,12 @@ class BaseDataset(Dataset):
         data_dict = self._index[ind]
         audio_path = data_dict["path"]
         audio = self.load_audio(audio_path)
+        audio = self.preprocess_audio(audio)
         text = data_dict["text"]
         text_encoded = self.text_encoder.encode(text)
 
         spectrogram = self.get_spectrogram(audio)
+        spectrogram = self.preprocess_spectrogram(spectrogram)
 
         instance_data = {
             "audio": audio,
@@ -93,11 +95,6 @@ class BaseDataset(Dataset):
             "text_encoded": text_encoded,
             "audio_path": audio_path,
         }
-
-        # TODO think of how to apply wave augs before calculating spectrogram
-        # Note: you may want to preserve both audio in time domain and
-        # in time-frequency domain for logging
-        instance_data = self.preprocess_data(instance_data)
 
         return instance_data
 
@@ -127,28 +124,22 @@ class BaseDataset(Dataset):
         """
         return self.instance_transforms["get_spectrogram"](audio)
 
-    def preprocess_data(self, instance_data):
-        """
-        Preprocess data with instance transforms.
+    def preprocess_audio(self, audio):
+        if self.instance_transforms is not None and "audio" in self.instance_transforms:
+            audio = self.instance_transforms["audio"](audio)
+        return audio
 
-        Each tensor in a dict undergoes its own transform defined by the key.
-
-        Args:
-            instance_data (dict): dict, containing instance
-                (a single dataset element).
-        Returns:
-            instance_data (dict): dict, containing instance
-                (a single dataset element) (possibly transformed via
-                instance transform).
+    def preprocess_spectrogram(self, spectrogram):
         """
-        if self.instance_transforms is not None:
-            for transform_name in self.instance_transforms.keys():
-                if transform_name == "get_spectrogram":
-                    continue  # skip special key
-                instance_data[transform_name] = self.instance_transforms[
-                    transform_name
-                ](instance_data[transform_name])
-        return instance_data
+        Apply spectrogram-level instance transforms (e.g. SpecAugment)
+        to an already-computed spectrogram.
+        """
+        if (
+            self.instance_transforms is not None
+            and "spectrogram" in self.instance_transforms
+        ):
+            spectrogram = self.instance_transforms["spectrogram"](spectrogram)
+        return spectrogram
 
     @staticmethod
     def _filter_records_from_dataset(
