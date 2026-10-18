@@ -145,6 +145,12 @@ class BaseTrainer:
         if config.trainer.get("from_pretrained") is not None:
             self._from_pretrained(config.trainer.get("from_pretrained"))
 
+        if self.config.writer.log_checkpoints:
+            self.writer.add_checkpoint(
+                str(self.checkpoint_dir / "config.yaml"),
+                str(self.checkpoint_dir.parent),
+            )
+
     def train(self):
         """
         Wrapper around training process to save model on keyboard interrupt.
@@ -188,6 +194,13 @@ class BaseTrainer:
 
             if stop_process:  # early_stop
                 break
+
+    def _get_bare_model(self):
+        return (
+            self.model.module
+            if isinstance(self.model, torch.nn.DataParallel)
+            else self.model
+        )
 
     def _train_epoch(self, epoch):
         """
@@ -465,11 +478,12 @@ class BaseTrainer:
                 'model_best.pth'(do not duplicate the checkpoint as
                 checkpoint-epochEpochNumber.pth)
         """
-        arch = type(self.model).__name__
+        model_to_save = self._get_bare_model()
+        arch = type(model_to_save).__name__
         state = {
             "arch": arch,
             "epoch": epoch,
-            "state_dict": self.model.state_dict(),
+            "state_dict": model_to_save.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "lr_scheduler": self.lr_scheduler.state_dict(),
             "monitor_best": self.mnt_best,
@@ -502,7 +516,7 @@ class BaseTrainer:
         """
         resume_path = str(resume_path)
         self.logger.info(f"Loading checkpoint: {resume_path} ...")
-        checkpoint = torch.load(resume_path, self.device)
+        checkpoint = torch.load(resume_path, self.device, weights_only=False)
         self.start_epoch = checkpoint["epoch"] + 1
         self.mnt_best = checkpoint["monitor_best"]
 
@@ -512,7 +526,7 @@ class BaseTrainer:
                 "Warning: Architecture configuration given in the config file is different from that "
                 "of the checkpoint. This may yield an exception when state_dict is loaded."
             )
-        self.model.load_state_dict(checkpoint["state_dict"])
+        self._get_bare_model().load_state_dict(checkpoint["state_dict"])
 
         # load optimizer state from checkpoint only when optimizer type is not changed.
         if (
@@ -548,9 +562,9 @@ class BaseTrainer:
             self.logger.info(f"Loading model weights from: {pretrained_path} ...")
         else:
             print(f"Loading model weights from: {pretrained_path} ...")
-        checkpoint = torch.load(pretrained_path, self.device)
+        checkpoint = torch.load(pretrained_path, self.device, weights_only=False)
 
         if checkpoint.get("state_dict") is not None:
-            self.model.load_state_dict(checkpoint["state_dict"])
+            self._get_bare_model().load_state_dict(checkpoint["state_dict"])
         else:
-            self.model.load_state_dict(checkpoint)
+            self._get_bare_model().load_state_dict(checkpoint)

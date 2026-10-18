@@ -1,0 +1,29 @@
+lm:
+  path: "lm/4-gram.binary" # override with an absolute path at launch time
+  alpha: 0.5
+  beta: 1.0
+
+train: [] # metrics that are calculated during training
+inference: # metrics that are calculated during inference (eval)
+  - _target_: src.metrics.ArgmaxCERMetric
+    name: "CER_(Argmax)" # it is better to avoid spaces in names
+  - _target_: src.metrics.ArgmaxWERMetric
+    name: "WER_(Argmax)"
+  - _target_: src.metrics.BeamSearchCERMetric
+    name: "CER_(BeamSearch)"
+    beam_width: 10
+  - _target_: src.metrics.BeamSearchWERMetric
+    name: "WER_(BeamSearch)"
+    beam_width: 10
+  - _target_: src.metrics.BeamSearchLMCERMetric
+    name: "CER_(BeamSearchLM)"
+    beam_width: 10
+    lm_path: ${metrics.lm.path}
+    alpha: ${metrics.lm.alpha}
+    beta: ${metrics.lm.beta}
+  - _target_: src.metrics.BeamSearchLMWERMetric
+    name: "WER_(BeamSearchLM)"
+    beam_width: 10
+    lm_path: ${metrics.lm.path}
+    alpha: ${metrics.lm.alpha}
+    beta: ${metrics.lm.beta}

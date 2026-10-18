@@ -23,13 +23,13 @@ train:
     _target_: torchvision.transforms.v2.Compose
     transforms:
       - _target_: src.transforms.spec_augs.FrequencyMasking
-        freq_mask_param: 15
+        freq_mask_param: 20
       - _target_: src.transforms.spec_augs.FrequencyMasking
-        freq_mask_param: 15
+        freq_mask_param: 20
       - _target_: src.transforms.spec_augs.TimeMasking
-        time_mask_param: 35
+        time_mask_param: 40
       - _target_: src.transforms.spec_augs.TimeMasking
-        time_mask_param: 35
+        time_mask_param: 40
 inference:
   get_spectrogram:
     _target_: torchaudio.transforms.MelSpectrogram

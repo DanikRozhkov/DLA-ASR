@@ -2,7 +2,7 @@ defaults:
   - model: baseline
   - writer: wandb
   - metrics: example
-  - datasets: example
+  - datasets: onebatchtest
   - dataloader: example
   - transforms: example_only_instance
   - _self_
@@ -20,16 +20,21 @@ loss_function:
   _target_: src.loss.CTCLossWrapper
 text_encoder:
   _target_: src.text_encoder.CTCTextEncoder
+dataloader:
+  batch_size: 2
 trainer:
   log_step: 50
   n_epochs: 50
-  epoch_len: 200
-  device_tensors: ["spectrogram", "text_encoded"] # which tensors should be on device (ex. GPU)
-  resume_from: null # null or path to the checkpoint dir with *.pth and config.yaml
-  device: auto # device name or "auto"
-  override: False # if True, will override the previous run with the same name
-  monitor: "min val_WER_(Argmax)" # "off" or "max/min metric_name", i.e. our goal is to maximize/minimize metric
-  save_period: 5 # checkpoint each save_period epochs in addition to the best epoch
-  early_stop: ${trainer.n_epochs} # epochs for early stopping
+  epoch_len: 20
+  device_tensors: ["spectrogram", "text_encoded"]
+  resume_from: null
+  device: auto
+  override: True
+  monitor: "min val_WER_(Argmax)"
+  save_period: 50
+  early_stop: ${trainer.n_epochs}
   save_dir: "saved"
   seed: 1
+writer:
+  run_name: "onebatchtest_mlp"
+  mode: "offline"

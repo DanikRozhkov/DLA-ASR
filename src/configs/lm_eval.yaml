@@ -1,0 +1,24 @@
+defaults:
+  - model: deepspeech2
+  - datasets: example
+  - dataloader: example
+  - transforms: example_only_instance
+  - _self_
+
+text_encoder:
+  _target_: src.text_encoder.CTCTextEncoder
+
+checkpoint_path: "saved/deepspeech2_librispeech_train_clean_100/model_best.pth"
+
+lm_eval:
+  beam_width: 10
+  lm_path: "lm/4-gram.binary"
+  alpha: 0.6
+  beta: 2.0
+  partitions: ["val", "test"]
+  n_workers: null # null -> use all available CPU cores
+  results_path: "lm_eval_results.json"
+
+trainer:
+  seed: 1
+  device: auto

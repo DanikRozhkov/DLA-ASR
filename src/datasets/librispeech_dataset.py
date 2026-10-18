@@ -3,7 +3,7 @@ import os
 import shutil
 from pathlib import Path
 
-import torchaudio
+import soundfile
 import wget
 from tqdm import tqdm
 
@@ -23,23 +23,26 @@ URL_LINKS = {
 
 class LibrispeechDataset(BaseDataset):
     def __init__(self, part, data_dir=None, *args, **kwargs):
-        assert part in URL_LINKS or part == "train_all"
+        parts = [part] if isinstance(part, str) else list(part)
+        for p in parts:
+            assert p in URL_LINKS or p == "train_all", f"Unknown part: {p}"
 
         if data_dir is None:
             data_dir = ROOT_PATH / "data" / "datasets" / "librispeech"
-            data_dir.mkdir(exist_ok=True, parents=True)
-        self._data_dir = data_dir
-        if part == "train_all":
-            index = sum(
-                [
-                    self._get_or_load_index(part)
-                    for part in URL_LINKS
-                    if "train" in part
-                ],
-                [],
-            )
         else:
-            index = self._get_or_load_index(part)
+            data_dir = Path(data_dir)
+        data_dir.mkdir(exist_ok=True, parents=True)
+        self._data_dir = data_dir
+
+        index = []
+        for p in parts:
+            if p == "train_all":
+                index += sum(
+                    [self._get_or_load_index(pp) for pp in URL_LINKS if "train" in pp],
+                    [],
+                )
+            else:
+                index += self._get_or_load_index(p)
 
         super().__init__(index, *args, **kwargs)
 
@@ -84,8 +87,7 @@ class LibrispeechDataset(BaseDataset):
                     f_id = line.split()[0]
                     f_text = " ".join(line.split()[1:]).strip()
                     flac_path = flac_dir / f"{f_id}.flac"
-                    t_info = torchaudio.info(str(flac_path))
-                    length = t_info.num_frames / t_info.sample_rate
+                    length = soundfile.info(str(flac_path)).duration
                     index.append(
                         {
                             "path": str(flac_path.absolute().resolve()),

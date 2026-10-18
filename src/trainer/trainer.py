@@ -40,7 +40,10 @@ class Trainer(BaseTrainer):
             metric_funcs = self.metrics["train"]
             self.optimizer.zero_grad()
 
-        outputs = self.model(**batch)
+        outputs = self.model(
+            spectrogram=batch["spectrogram"],
+            spectrogram_length=batch["spectrogram_length"],
+        )
         batch.update(outputs)
 
         all_losses = self.criterion(**batch)
@@ -103,7 +106,7 @@ class Trainer(BaseTrainer):
         # this logging can also be improved significantly
 
         log_probs_np = log_probs.cpu().numpy()
-        lengths = log_probs_length.numpy()
+        lengths = log_probs_length.cpu().numpy()
         n = min(examples_to_log, log_probs_np.shape[0])
 
         rows = {}

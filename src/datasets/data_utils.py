@@ -1,9 +1,36 @@
 from itertools import repeat
 
+import torch
 from hydra.utils import instantiate
+from torch.utils.data import Sampler
 
 from src.datasets.collate import collate_fn
 from src.utils.init_utils import set_worker_seed
+
+
+class SortaGradSampler(Sampler):
+    def __init__(self, dataset, seed=42):
+        self.dataset = dataset
+        self.seed = seed
+        self._pass_count = 0
+
+        self._sorted_indices = sorted(
+            range(len(dataset)), key=lambda i: dataset.get_audio_length(i)
+        )
+
+    def __iter__(self):
+        if self._pass_count == 0:
+            indices = self._sorted_indices
+        else:
+            generator = torch.Generator()
+            generator.manual_seed(self.seed + self._pass_count)
+            indices = torch.randperm(len(self.dataset), generator=generator).tolist()
+
+        self._pass_count += 1
+        return iter(indices)
+
+    def __len__(self):
+        return len(self.dataset)
 
 
 def inf_loop(dataloader):
@@ -77,14 +104,24 @@ def get_dataloaders(config, text_encoder, device):
             f"be larger than the dataset length ({len(dataset)})"
         )
 
-        partition_dataloader = instantiate(
-            config.dataloader,
-            dataset=dataset,
-            collate_fn=collate_fn,
-            drop_last=(dataset_partition == "train"),
-            shuffle=(dataset_partition == "train"),
-            worker_init_fn=set_worker_seed,
-        )
+        if dataset_partition == "train":
+            partition_dataloader = instantiate(
+                config.dataloader,
+                dataset=dataset,
+                collate_fn=collate_fn,
+                drop_last=True,
+                sampler=SortaGradSampler(dataset),
+                worker_init_fn=set_worker_seed,
+            )
+        else:
+            partition_dataloader = instantiate(
+                config.dataloader,
+                dataset=dataset,
+                collate_fn=collate_fn,
+                drop_last=False,
+                shuffle=False,
+                worker_init_fn=set_worker_seed,
+            )
         dataloaders[dataset_partition] = partition_dataloader
 
     return dataloaders, batch_transforms

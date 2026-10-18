@@ -2,6 +2,7 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
+import torch
 
 
 class CometMLWriter:
@@ -176,6 +177,11 @@ class CometMLWriter:
             image (Path | Tensor | ndarray | list[tuple] | Image): image
                 in the CometML-friendly format.
         """
+        if isinstance(image, torch.Tensor):
+            image = image.detach().cpu()
+            if image.dim() == 3:
+                image = image.permute(1, 2, 0)  # C,H,W -> H,W,C
+            image = image.numpy()
         self.exp.log_image(
             image_data=image, name=self._object_name(image_name), step=self.step
         )

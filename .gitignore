@@ -107,6 +107,7 @@ saved/
 wandb/
 .cometml-runs/
 outputs/
+comet_archives/
 
 # editor, os cache directory
 .vscode/

@@ -2,6 +2,7 @@ import logging
 import random
 
 import numpy as np
+import soundfile
 import torch
 import torchaudio
 from torch.utils.data import Dataset
@@ -105,7 +106,8 @@ class BaseDataset(Dataset):
         return len(self._index)
 
     def load_audio(self, path):
-        audio_tensor, sr = torchaudio.load(path)
+        audio_np, sr = soundfile.read(path, dtype="float32", always_2d=True)
+        audio_tensor = torch.from_numpy(audio_np.T).contiguous()
         audio_tensor = audio_tensor[0:1, :]  # remove all channels but the first
         target_sr = self.target_sr
         if sr != target_sr:
@@ -140,6 +142,9 @@ class BaseDataset(Dataset):
         ):
             spectrogram = self.instance_transforms["spectrogram"](spectrogram)
         return spectrogram
+
+    def get_audio_length(self, ind):
+        return self._index[ind]["audio_len"]
 
     @staticmethod
     def _filter_records_from_dataset(
