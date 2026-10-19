@@ -1,13 +1,50 @@
 defaults:
-  - model: baseline
-  - metrics: example
-  - datasets: example_eval # we do not want to run inference on training data
+  - model: deepspeech2
+  - metrics: example_with_lm
+  - datasets: custom_dir
   - dataloader: example
-  - transforms: example
+  - transforms: example_only_instance
   - _self_
+text_encoder:
+  _target_: src.text_encoder.CTCTextEncoder
+  sp_model_path: "bpe/librispeech_bpe500.model"
+metrics:
+  lm:
+    path: "lm/4-gram.binary"
+    alpha: 0.6
+    beta: 2.0
+  inference:
+    - _target_: src.metrics.ArgmaxCERMetric
+      name: "CER_(Argmax)"
+    - _target_: src.metrics.ArgmaxWERMetric
+      name: "WER_(Argmax)"
+    - _target_: src.metrics.BeamSearchCERMetric
+      name: "CER_(BeamSearch)"
+      beam_width: 30
+    - _target_: src.metrics.BeamSearchWERMetric
+      name: "WER_(BeamSearch)"
+      beam_width: 30
+    - _target_: src.metrics.BeamSearchLMCERMetric
+      name: "CER_(BeamSearchLM)"
+      beam_width: 30
+      lm_path: ${metrics.lm.path}
+      alpha: ${metrics.lm.alpha}
+      beta: ${metrics.lm.beta}
+    - _target_: src.metrics.BeamSearchLMWERMetric
+      name: "WER_(BeamSearchLM)"
+      beam_width: 30
+      lm_path: ${metrics.lm.path}
+      alpha: ${metrics.lm.alpha}
+      beta: ${metrics.lm.beta}
+dataloader:
+  batch_size: 16
+  num_workers: 0
+  multiprocessing_context: null
+  persistent_workers: false
 inferencer:
-  device_tensors: ["data_object", "labels"] # which tensors should be on device (ex. GPU)
-  device: auto # device name or "auto"
-  save_path: "example" # any name here, can be a dataset name
+  device_tensors: ["spectrogram", "text_encoded"]
+  device: auto
+  save_path: "custom_dir_predictions"
+  save_beam_width: 30
   seed: 1
-  from_pretrained: "saved/model_best.pth" # path to the pretrained model
+  from_pretrained: "saved/deepspeech2_bpe500_clean460_70ep/model_best.pth"

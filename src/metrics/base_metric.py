@@ -76,7 +76,12 @@ class BaseParallelBeamSearchMetric(BaseDecodeMetric):
         self.alpha = alpha
         self.beta = beta
         self.n_workers = n_workers
-        self._pool = get_pool(n_workers=n_workers, alphabet=text_encoder.alphabet)
+        self._pool = get_pool(
+            n_workers=n_workers,
+            alphabet=text_encoder.alphabet,
+            sp_model_path=getattr(text_encoder, "sp_model_path", None),
+            topk=getattr(text_encoder, "beam_search_topk", 45),
+        )
 
     def __call__(self, log_probs, log_probs_length, text, **kwargs):
         if log_probs.shape[0] == 0:

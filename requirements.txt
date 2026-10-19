@@ -12,6 +12,8 @@ wandb
 comet_ml
 hydra-core
 wget
+sentencepiece
+kenlm
 
 black
 isort

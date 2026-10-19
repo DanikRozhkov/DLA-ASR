@@ -51,12 +51,14 @@ def extract_val_log_probs(config, device):
 _WORKER = {}
 
 
-def _init_worker(samples, lm_path, alphabet, beam_width):
+def _init_worker(samples, lm_path, alphabet, sp_model_path, topk, beam_width):
     from src.text_encoder.ctc_text_encoder import CTCTextEncoder
 
     _WORKER["samples"] = samples
     _WORKER["lm"] = load_kenlm_model(lm_path)
-    _WORKER["encoder"] = CTCTextEncoder(alphabet=alphabet)
+    _WORKER["encoder"] = CTCTextEncoder(
+        alphabet=alphabet, sp_model_path=sp_model_path, topk=topk
+    )
     _WORKER["beam_width"] = beam_width
 
 
@@ -98,6 +100,8 @@ def main(config):
     grid = list(itertools.product(alphas, betas))
     beam_width = config.lm_tuning.beam_width
     lm_path = config.metrics.lm.path
+    sp_model_path = config.text_encoder.get("sp_model_path")
+    topk = config.text_encoder.get("topk", 45)
     n_workers = config.lm_tuning.n_workers or mp.cpu_count()
 
     print(
@@ -109,7 +113,14 @@ def main(config):
     with mp.Pool(
         n_workers,
         initializer=_init_worker,
-        initargs=(samples, lm_path, config.text_encoder.get("alphabet"), beam_width),
+        initargs=(
+            samples,
+            lm_path,
+            config.text_encoder.get("alphabet"),
+            sp_model_path,
+            topk,
+            beam_width,
+        ),
     ) as pool:
         for r in tqdm(
             pool.imap_unordered(_evaluate_combo, grid),

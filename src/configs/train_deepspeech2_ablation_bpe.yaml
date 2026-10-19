@@ -1,0 +1,46 @@
+defaults:
+  - model: deepspeech2
+  - writer: cometml
+  - metrics: example
+  - datasets: example
+  - dataloader: example
+  - transforms: example_only_instance
+  - _self_
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 3e-4
+lr_scheduler:
+  _target_: torch.optim.lr_scheduler.OneCycleLR
+  max_lr: 5e-4
+  pct_start: 0.15
+  steps_per_epoch: ${trainer.epoch_len}
+  epochs: ${trainer.n_epochs}
+  anneal_strategy: cos
+loss_function:
+  _target_: src.loss.CTCLossWrapper
+text_encoder:
+  _target_: src.text_encoder.CTCTextEncoder
+  sp_model_path: "bpe/librispeech_bpe500.model"
+dataloader:
+  batch_size: 16
+datasets:
+  train:
+    part: "train-clean-100"
+trainer:
+  log_step: 50
+  n_epochs: 30
+  epoch_len: 500
+  device_tensors: ["spectrogram", "text_encoded"]
+  resume_from: null
+  from_pretrained: "saved/deepspeech2_librispeech_clean460_100ep/model_best.pth"
+  device: auto
+  override: False
+  monitor: "min val_WER_(Argmax)"
+  max_grad_norm: 10
+  save_period: 5
+  early_stop: ${trainer.n_epochs}
+  save_dir: "saved"
+  seed: 1
+writer:
+  run_name: "deepspeech2_ablation_bpe500"
+  mode: "offline"

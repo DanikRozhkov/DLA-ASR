@@ -113,3 +113,4 @@ comet_archives/
 .vscode/
 .idea/
 __MACOSX/
+release_artifacts/

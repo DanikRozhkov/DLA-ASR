@@ -1,8 +1,15 @@
+import logging
+from pathlib import Path
+
 import torch
 from tqdm.auto import tqdm
 
+from src.metrics.decode_pool import _decode_one, get_pool
 from src.metrics.tracker import MetricTracker
+from src.text_encoder.lm.lm_utils import load_kenlm_model
 from src.trainer.base_trainer import BaseTrainer
+
+logger = logging.getLogger(__name__)
 
 
 class Inferencer(BaseTrainer):
@@ -80,6 +87,22 @@ class Inferencer(BaseTrainer):
         else:
             self.evaluation_metrics = None
 
+        self.save_beam_width = config.inferencer.get("save_beam_width", 10)
+        lm_cfg = config.metrics.get("lm") if "metrics" in config else None
+        if lm_cfg is not None and lm_cfg.get("path") is not None:
+            self.lm_path = lm_cfg.path
+            self.lm_alpha = lm_cfg.get("alpha", 0.5)
+            self.lm_beta = lm_cfg.get("beta", 1.0)
+        else:
+            self.lm_path = None
+            self.lm_alpha = 0.0
+            self.lm_beta = 0.0
+        self._decode_pool = get_pool(
+            alphabet=text_encoder.alphabet,
+            sp_model_path=getattr(text_encoder, "sp_model_path", None),
+            topk=getattr(text_encoder, "beam_search_topk", 45),
+        )
+
         if not skip_model_load:
             # init model
             self._from_pretrained(config.inferencer.get("from_pretrained"))
@@ -120,42 +143,57 @@ class Inferencer(BaseTrainer):
                 the dataloader (possibly transformed via batch transform)
                 and model outputs.
         """
-        # TODO change inference logic so it suits ASR assignment
-        # and task pipeline
-
         batch = self.move_batch_to_device(batch)
         batch = self.transform_batch(batch)  # transform batch on device -- faster
 
-        outputs = self.model(**batch)
+        outputs = self.model(
+            spectrogram=batch["spectrogram"],
+            spectrogram_length=batch["spectrogram_length"],
+        )
         batch.update(outputs)
 
         if metrics is not None:
             for met in self.metrics["inference"]:
                 metrics.update(met.name, met(**batch))
 
-        # Some saving logic. This is an example
-        # Use if you need to save predictions on disk
+        if self.save_path is not None:
+            log_probs = batch["log_probs"].detach().cpu().numpy()
+            log_probs_length = batch["log_probs_length"].detach().cpu().numpy()
+            audio_paths = batch["audio_path"]
 
-        batch_size = batch["logits"].shape[0]
-        current_id = batch_idx * batch_size
+            out_dir = self.save_path / part
+            out_dir.mkdir(exist_ok=True, parents=True)
 
-        for i in range(batch_size):
-            # clone because of
-            # https://github.com/pytorch/pytorch/issues/1995
-            logits = batch["logits"][i].clone()
-            label = batch["labels"][i].clone()
-            pred_label = logits.argmax(dim=-1)
+            tasks = [
+                (
+                    log_probs[i, : int(log_probs_length[i])].copy(),
+                    self.save_beam_width,
+                    self.lm_path,
+                    self.lm_alpha,
+                    self.lm_beta,
+                )
+                for i in range(log_probs.shape[0])
+            ]
+            try:
+                pred_texts = self._decode_pool.map(_decode_one, tasks)
+            except Exception as e:
+                logger.warning(
+                    f"decode pool failed ({e!r}), falling back to serial "
+                    "decoding for this batch"
+                )
+                lm_model = (
+                    load_kenlm_model(self.lm_path) if self.lm_path is not None else None
+                )
+                pred_texts = [
+                    self.text_encoder.ctc_beam_search(
+                        lp, bw, lm_model=lm_model, alpha=a, beta=b
+                    )
+                    for lp, bw, _, a, b in tasks
+                ]
 
-            output_id = current_id + i
-
-            output = {
-                "pred_label": pred_label,
-                "label": label,
-            }
-
-            if self.save_path is not None:
-                # you can use safetensors or other lib here
-                torch.save(output, self.save_path / part / f"output_{output_id}.pth")
+            for i, pred_text in enumerate(pred_texts):
+                utterance_id = Path(audio_paths[i]).stem
+                (out_dir / f"{utterance_id}.txt").write_text(pred_text)
 
         return batch
 

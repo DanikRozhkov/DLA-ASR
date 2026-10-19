@@ -11,11 +11,13 @@ _pool_n_workers = None
 _worker_encoder = None
 
 
-def _init_worker(alphabet):
+def _init_worker(alphabet, sp_model_path, topk):
     global _worker_encoder
     from src.text_encoder.ctc_text_encoder import CTCTextEncoder
 
-    _worker_encoder = CTCTextEncoder(alphabet=alphabet)
+    _worker_encoder = CTCTextEncoder(
+        alphabet=alphabet, sp_model_path=sp_model_path, topk=topk
+    )
 
 
 def _decode_one(task):
@@ -30,7 +32,7 @@ def default_n_workers():
     return max(1, mp.cpu_count() // 2)
 
 
-def get_pool(n_workers=None, alphabet=None):
+def get_pool(n_workers=None, alphabet=None, sp_model_path=None, topk=45):
     """
     Return the shared decode pool, creating it on first call. Subsequent
     calls ignore n_workers/alphabet and return the same pool -- metrics
@@ -48,7 +50,9 @@ def get_pool(n_workers=None, alphabet=None):
         return _pool
 
     ctx = mp.get_context("spawn")
-    _pool = ctx.Pool(n_workers, initializer=_init_worker, initargs=(alphabet,))
+    _pool = ctx.Pool(
+        n_workers, initializer=_init_worker, initargs=(alphabet, sp_model_path, topk)
+    )
     _pool_n_workers = n_workers
     atexit.register(shutdown_pool)
     logger.info(f"Decode pool started with {n_workers} worker processes")

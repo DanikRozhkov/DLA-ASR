@@ -1,0 +1,7 @@
+train_bpe:
+  data_dir: /home/ubuntu/librispeech_data
+  parts: ["train-clean-100", "train-clean-360"]
+  corpus_path: "bpe/corpus.txt"
+  rebuild_corpus: False
+  model_prefix: "bpe/librispeech_bpe500"
+  vocab_size: 500

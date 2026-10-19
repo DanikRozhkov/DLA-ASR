@@ -563,8 +563,22 @@ class BaseTrainer:
         else:
             print(f"Loading model weights from: {pretrained_path} ...")
         checkpoint = torch.load(pretrained_path, self.device, weights_only=False)
+        state_dict = checkpoint.get("state_dict", checkpoint)
 
-        if checkpoint.get("state_dict") is not None:
-            self._get_bare_model().load_state_dict(checkpoint["state_dict"])
-        else:
-            self._get_bare_model().load_state_dict(checkpoint)
+        model = self._get_bare_model()
+        model_state = model.state_dict()
+        compatible = {}
+        skipped = []
+        for key, value in state_dict.items():
+            if key in model_state and model_state[key].shape == value.shape:
+                compatible[key] = value
+            else:
+                skipped.append(key)
+
+        model.load_state_dict(compatible, strict=False)
+        if skipped:
+            msg = f"Skipped {len(skipped)} mismatched-shape pretrained keys: {skipped}"
+            if hasattr(self, "logger"):
+                self.logger.info(msg)
+            else:
+                print(msg)

@@ -28,11 +28,13 @@ warnings.filterwarnings("ignore", category=UserWarning)
 _WORKER = {}
 
 
-def _init_worker(lm_path, alphabet, beam_width):
+def _init_worker(lm_path, alphabet, sp_model_path, topk, beam_width):
     from src.text_encoder.ctc_text_encoder import CTCTextEncoder
 
     _WORKER["lm"] = load_kenlm_model(lm_path)
-    _WORKER["encoder"] = CTCTextEncoder(alphabet=alphabet)
+    _WORKER["encoder"] = CTCTextEncoder(
+        alphabet=alphabet, sp_model_path=sp_model_path, topk=topk
+    )
     _WORKER["beam_width"] = beam_width
 
 
@@ -86,7 +88,13 @@ def main(config):
 
     from src.text_encoder.ctc_text_encoder import CTCTextEncoder
 
-    encoder_for_argmax = CTCTextEncoder(alphabet=config.text_encoder.get("alphabet"))
+    sp_model_path = config.text_encoder.get("sp_model_path")
+    topk = config.text_encoder.get("topk", 45)
+    encoder_for_argmax = CTCTextEncoder(
+        alphabet=config.text_encoder.get("alphabet"),
+        sp_model_path=sp_model_path,
+        topk=topk,
+    )
 
     samples_by_partition = {}
     argmax_results = {}
@@ -123,7 +131,13 @@ def main(config):
     with mp.Pool(
         n_workers,
         initializer=_init_worker,
-        initargs=(lm_path, config.text_encoder.get("alphabet"), beam_width),
+        initargs=(
+            lm_path,
+            config.text_encoder.get("alphabet"),
+            sp_model_path,
+            topk,
+            beam_width,
+        ),
     ) as pool:
         for combo_id, cer_errors, wer_errors in tqdm(
             pool.imap_unordered(_decode_chunk, tasks),
