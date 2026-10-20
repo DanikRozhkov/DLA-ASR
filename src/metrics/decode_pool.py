@@ -1,3 +1,8 @@
+"""
+Sets up a shared pool of worker processes that decode beam search
+predictions in parallel instead of one at a time
+"""
+
 import atexit
 import logging
 import multiprocessing as mp
@@ -12,6 +17,17 @@ _worker_encoder = None
 
 
 def _init_worker(alphabet, sp_model_path, topk):
+    """
+    Builds a text encoder inside a worker process the first time that
+    worker is used, so every worker can decode on its own
+
+    Args:
+        alphabet (list[str] | None): character alphabet to use, ignored
+            if sp_model_path is given
+        sp_model_path (str | None): path to a trained SentencePiece
+            model, switches the encoder to BPE mode if given
+        topk (int): how many candidates beam search considers per frame
+    """
     global _worker_encoder
     from src.text_encoder.ctc_text_encoder import CTCTextEncoder
 
@@ -21,6 +37,14 @@ def _init_worker(alphabet, sp_model_path, topk):
 
 
 def _decode_one(task):
+    """
+    Decodes a single utterance inside a worker process, loading the
+    language model for that path if one was given
+
+    Args:
+        task (tuple): a (log_probs, beam_width, lm_path, alpha, beta)
+            tuple describing one utterance to decode.
+    """
     log_probs, beam_width, lm_path, alpha, beta = task
     lm_model = load_kenlm_model(lm_path) if lm_path is not None else None
     return _worker_encoder.ctc_beam_search(
@@ -29,16 +53,24 @@ def _decode_one(task):
 
 
 def default_n_workers():
+    """
+    Picks a reasonable number of worker processes
+    """
     return max(1, mp.cpu_count() // 2)
 
 
 def get_pool(n_workers=None, alphabet=None, sp_model_path=None, topk=45):
     """
-    Return the shared decode pool, creating it on first call. Subsequent
-    calls ignore n_workers/alphabet and return the same pool -- metrics
-    are all constructed once at Trainer startup with the same text
-    encoder, so this is a non-issue in practice; it's documented here
-    because it's a real constraint of the singleton design.
+    creating shared worker pool and reusing it after that
+
+    Args:
+        n_workers (int | None): how many worker processes to start, picks
+            a sensible default if None.
+        alphabet (list[str] | None): character alphabet for the workers'
+            text encoders, ignored in BPE mode.
+        sp_model_path (str | None): path to a trained SentencePiece
+            model, switches the workers' encoders to BPE mode if given.
+        topk (int): how many candidates beam search considers per frame.
     """
     global _pool, _pool_n_workers
 
@@ -60,6 +92,9 @@ def get_pool(n_workers=None, alphabet=None, sp_model_path=None, topk=45):
 
 
 def shutdown_pool():
+    """
+    Shuts down the shared worker pool so a later call can start a fresh one
+    """
     global _pool
     if _pool is not None:
         try:

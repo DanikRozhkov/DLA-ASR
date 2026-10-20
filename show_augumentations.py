@@ -1,7 +1,13 @@
+"""
+A standalone script that logs a handful of audio examples before and
+after every augmentation
+"""
+
 import logging
 
 import hydra
-import torchaudio
+import soundfile
+import torch
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
@@ -13,7 +19,12 @@ logger = logging.getLogger(__name__)
 
 def unique_by_type(transform_list):
     """
-    Keep only the first instance of each distinct transform class
+    Keeps only the first example of each distinct augmentation so the
+    demo does not repeat the same kind of transform twice
+
+    Args:
+        transform_list (list): augmentations to filter down to one per
+            type
     """
     seen_types = set()
     unique = []
@@ -26,7 +37,11 @@ def unique_by_type(transform_list):
 
 def force_apply(transform):
     """
-    Force transform to always fire for the demo
+    Turns an augmentations probability up to 1 so it always applies for the demo
+
+    Args:
+        transform: augmentation to force on, optionally wrapped in a
+            RandomApply-style container
     """
     inner = getattr(transform, "_aug", transform)
     if hasattr(inner, "p"):
@@ -38,6 +53,14 @@ def force_apply(transform):
     version_base=None, config_path="src/configs", config_name="show_augumentation"
 )
 def main(config):
+    """
+    Runs every augmentation on a sample from dev-clean and logs the
+    results to Comet so they can be checked by ear and by eye
+
+    Args:
+        config (DictConfig): Hydra config with the transforms and writer
+            settings
+    """
     project_config = OmegaConf.to_container(config)
     writer = instantiate(config.writer, logger, project_config)
     get_spectrogram = instantiate(
@@ -61,7 +84,8 @@ def main(config):
 
     writer.set_step(0, mode="augmentation_demo")
     for i, path in enumerate(audio_paths):
-        clean_audio, sr = torchaudio.load(str(path))
+        clean_audio_np, sr = soundfile.read(str(path), dtype="float32", always_2d=True)
+        clean_audio = torch.from_numpy(clean_audio_np.T).contiguous()[0:1, :]
         clean_spec = get_spectrogram(clean_audio)
 
         writer.add_audio(f"sample_{i}/clean_audio", clean_audio, sample_rate=sr)
@@ -101,7 +125,7 @@ def main(config):
 
         logger.info(f"Logged sample {i}: {path.name}")
 
-    logger.info("Done - check the W&B run for before/after audio and spectrograms")
+    logger.info("Done")
 
 
 if __name__ == "__main__":

@@ -11,6 +11,13 @@ def extract_log_probs(config, partition, device):
     Run the acoustic model once (pure inference: eval(), no_grad(), no
     optimizer, no training loop) over a single dataset partition and
     return a list of {"log_probs": ndarray, "text": str} per sample
+
+    Args:
+        config (DictConfig): Hydra config with the model, dataset, and
+            checkpoint_path settings
+        partition (str): name of the dataset partition to run over, such
+            as "val" or "test"
+        device (str): device to run the acoustic model on
     """
     text_encoder = instantiate(config.text_encoder)
     dataset = instantiate(config.datasets[partition], text_encoder=text_encoder)

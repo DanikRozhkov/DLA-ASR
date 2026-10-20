@@ -1,11 +1,14 @@
 defaults:
-  - writer: wandb
+  - writer: cometml
   - transforms: example_only_instance
   - _self_
 
 writer:
   run_name: "augmentations_demo"
 
-audio_dir: "data/datasets/librispeech/dev-clean"
+trainer:
+  resume_from: null
+
+audio_dir: "/home/ubuntu/librispeech_data/dev-clean"
 audio_glob: "*.flac"
 n_examples: 3

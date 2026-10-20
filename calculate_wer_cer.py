@@ -1,3 +1,9 @@
+"""
+A standalone script that compares a folder of predicted transcripts
+against a folder of ground truth transcripts and reports the overall
+metrics
+"""
+
 import argparse
 from pathlib import Path
 
@@ -6,6 +12,10 @@ from src.text_encoder.ctc_text_encoder import CTCTextEncoder
 
 
 def main():
+    """
+    Reads the predicted and ground truth files, matches them up by name,
+    and prints the average metrics
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--predictions_dir",

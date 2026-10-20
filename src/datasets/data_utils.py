@@ -1,3 +1,7 @@
+"""
+Helpers for building dataloaders
+"""
+
 from itertools import repeat
 
 import torch
@@ -10,6 +14,14 @@ from src.utils.init_utils import set_worker_seed
 
 class SortaGradSampler(Sampler):
     def __init__(self, dataset, seed=42):
+        """
+        Sorts every example in the dataset by audio length so the first
+        pass through the data can start with the easiest examples
+
+        Args:
+            dataset: dataset to sample indices from
+            seed (int): seed for the random order used on later passes
+        """
         self.dataset = dataset
         self.seed = seed
         self._pass_count = 0
@@ -19,6 +31,10 @@ class SortaGradSampler(Sampler):
         )
 
     def __iter__(self):
+        """
+        Hands out examples sorted by length on the first pass and
+        in a fresh random order on every future pass
+        """
         if self._pass_count == 0:
             indices = self._sorted_indices
         else:

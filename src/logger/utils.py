@@ -1,3 +1,8 @@
+"""
+Small plotting helpers that turn spectrograms and waveforms into images
+for logging
+"""
+
 import io
 
 import matplotlib.pyplot as plt
@@ -69,6 +74,17 @@ def plot_spectrogram(spectrogram, name=None):
 
 
 def plot_waveform(audio, sample_rate, name=None):
+    """
+    Draws a waveform over time and returns it as an
+    image that is ready for logging
+
+    Args:
+        audio (Tensor): waveform samples, only the first channel is
+            used if multi-channel
+        sample_rate (int): sample rate of the audio, used to build the
+            time axis
+        name (str | None): optional title for the plot
+    """
     audio = audio.detach().cpu()
     if audio.dim() > 1:
         audio = audio[0]

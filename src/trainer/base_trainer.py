@@ -196,6 +196,10 @@ class BaseTrainer:
                 break
 
     def _get_bare_model(self):
+        """
+        Unwraps the underlying model from its DataParallel wrapper when
+        one is present, so its raw state dict can be saved or loaded
+        """
         return (
             self.model.module
             if isinstance(self.model, torch.nn.DataParallel)

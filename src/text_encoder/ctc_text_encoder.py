@@ -1,3 +1,8 @@
+"""
+Defines the text encoder with character and
+BPE vocabularies with greedy and beam search decoding
+"""
+
 import math
 import re
 from collections import defaultdict
@@ -11,6 +16,13 @@ WORD_BOUNDARY_MARKER = "▁"
 
 
 def _log_add(a: float, b: float) -> float:
+    """
+    Numerically stable log sum exp
+
+    Args:
+        a (float): first log-probability
+        b (float): second log-probability
+    """
     if a == NEG_INF:
         return b
     if b == NEG_INF:
@@ -77,6 +89,14 @@ class CTCTextEncoder:
             )
 
     def _render(self, ids) -> str:
+        """
+        Turns a sequence of token ids back into readable text, using the
+        SentencePiece model in BPE mode or plain character lookup
+        otherwise
+
+        Args:
+            ids (list[int]): non-blank token indices to render as text
+        """
         if self.is_bpe:
             return self.sp.decode_ids([int(i) - 1 for i in ids])
         return "".join(self.ind2char[int(i)] for i in ids)
@@ -97,6 +117,14 @@ class CTCTextEncoder:
         return "".join([self.ind2char[int(ind)] for ind in inds]).strip()
 
     def ctc_decode(self, inds) -> str:
+        """
+        Collapses repeated tokens and removes blanks from a raw
+        prediction sequence, then renders what is left as text
+
+        Args:
+            inds (list[int]): raw per-frame predicted token indices,
+                straight from argmax, before any collapsing
+        """
         res = []
         counter = 0
         while counter < len(inds):
@@ -114,8 +142,16 @@ class CTCTextEncoder:
         CTC prefix beam search decoding, with optional LM fusion
 
         Args:
-            log_probs (Tensor): log probabilities, shape (timestamps, vocab_size)
-            beam_width (int): number of candidate prefixes keeps at each step
+            log_probs (ndarray): per-frame log-probabilities for one
+                utterance, shape (timestamps, vocab_size)
+            beam_width (int): how many candidate hypotheses to keep at
+                each time step
+            lm_model: optional language model used to rescore hypotheses,
+                left out entirely if None
+            alpha (float): how much weight to give the language model's
+                score relative to the acoustic model
+            beta (float): bonus added per word, to counter the language
+                model's bias toward shorter hypotheses
         Returns:
             best_prefix (str): decoded best hypothesis
         """

@@ -1,3 +1,7 @@
+"""
+DeepSpeech2 architecture implementation
+"""
+
 import torch
 from torch import nn
 

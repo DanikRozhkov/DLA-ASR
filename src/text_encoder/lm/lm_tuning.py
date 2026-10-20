@@ -1,12 +1,6 @@
 """
-Grid-search alpha/beta for LM shallow fusion on the validation set.
-
-The acoustic model is run exactly once over the val set to produce
-log_probs (the expensive, GPU-bound step, independent of alpha/beta).
-Every (alpha, beta) combination is then evaluated purely on CPU by
-replaying the cached log_probs through ctc_beam_search, grid points
-split across worker processes since they are fully independent of
-each other.
+Searches over language model weighting values to find the pair that
+gives the lowest word error rate on the validation set
 """
 
 import itertools
@@ -33,6 +27,11 @@ def extract_val_log_probs(config, device):
     Run the acoustic model once over the val set and cache (log_probs,
     text) for every sample to disk. Skips recomputation on later runs
     if the cache file already exists.
+
+    Args:
+        config (DictConfig): Hydra config with the dataset, model, and
+            lm_tuning.cache_path settings
+        device (str): device to run the acoustic model
     """
     cache_path = config.lm_tuning.cache_path
     if os.path.exists(cache_path):
@@ -52,6 +51,24 @@ _WORKER = {}
 
 
 def _init_worker(samples, lm_path, alphabet, sp_model_path, topk, beam_width):
+    """
+    Prepares one worker process with the cached samples, the language
+    model, and a text encoder, so it can evaluate grid search points on
+    its own
+
+    Args:
+        samples (list[dict]): cached (log_probs, text) pairs for the
+            validation set
+        lm_path (str): path to the KenLM model file to score hypotheses
+            with
+        alphabet (list[str] | None): character alphabet to use, ignored
+            if sp_model_path is given
+        sp_model_path (str | None): path to a trained SentencePiece
+            model, switches the encoder to BPE mode if given
+        topk (int): how many candidates beam search considers per frame
+        beam_width (int): how many candidate hypotheses to keep at each
+            time step
+    """
     from src.text_encoder.ctc_text_encoder import CTCTextEncoder
 
     _WORKER["samples"] = samples
@@ -63,6 +80,13 @@ def _init_worker(samples, lm_path, alphabet, sp_model_path, topk, beam_width):
 
 
 def _evaluate_combo(combo):
+    """
+    Decodes every cached validation sample with one alpha and beta
+    setting and reports the resulting metrics
+
+    Args:
+        combo (tuple[float, float]): an (alpha, beta) pair to evaluate
+    """
     alpha, beta = combo
     samples = _WORKER["samples"]
     lm = _WORKER["lm"]
@@ -88,6 +112,14 @@ def _evaluate_combo(combo):
 
 @hydra.main(version_base=None, config_path="../../configs", config_name="lm_tuning")
 def main(config):
+    """
+    Runs the full search across every alpha and beta setting and prints
+    the best found
+
+    Args:
+        config (DictConfig): Hydra config with the lm_tuning, metrics,
+            and text_encoder settings for the grid search
+    """
     set_random_seed(config.trainer.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     if config.trainer.device != "auto":

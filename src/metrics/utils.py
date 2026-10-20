@@ -1,11 +1,18 @@
-# Based on seminar materials
-
-# Don't forget to support cases when target_text == ''
+"""
+Helper functions for computing character and word error rates between a
+prediction and its target
+"""
 
 
 def _levenshtein_distance(reference, hypothesis) -> int:
     """
     Levenshtein distance between two sequences
+
+    Args:
+        reference (Sequence): reference sequence, such as a list of
+            characters or words
+        hypothesis (Sequence): sequence to compare against the
+            reference
     """
     n, m = len(reference), len(hypothesis)
     dp = [[0] * (m + 1) for _ in range(n + 1)]
@@ -24,6 +31,14 @@ def _levenshtein_distance(reference, hypothesis) -> int:
 
 
 def calc_cer(target_text, predicted_text) -> float:
+    """
+    Measures how many single character edits separate the prediction
+    from the target
+
+    Args:
+        target_text (str): ground-truth transcription
+        predicted_text (str): predicted transcription
+    """
     if len(target_text) == 0:
         return 1.0 if len(predicted_text) > 0 else 0.0
     distance = _levenshtein_distance(target_text, predicted_text)
@@ -31,6 +46,14 @@ def calc_cer(target_text, predicted_text) -> float:
 
 
 def calc_wer(target_text, predicted_text) -> float:
+    """
+    Measures how many whole word edits separate the prediction from the
+    target
+
+    Args:
+        target_text (str): ground-truth transcription
+        predicted_text (str): predicted transcription
+    """
     target_words = target_text.split()
     predicted_words = predicted_text.split()
     if len(target_words) == 0:

@@ -1,3 +1,8 @@
+"""
+Trains a SentencePiece tokenizer on the transcripts of the training set
+so that model can predict subwords instead of single characters
+"""
+
 import json
 from pathlib import Path
 
@@ -5,6 +10,15 @@ import hydra
 
 
 def _write_corpus(config, corpus_path):
+    """
+    Pulls every transcript out of the already downloaded dataset index
+    and writes them to a single text file for the tokenizer to train on
+
+    Args:
+        config (DictConfig): Hydra config with the train_bpe.data_dir
+            and train_bpe.parts settings
+        corpus_path (Path): file to write the normalized transcripts to
+    """
     from src.text_encoder.ctc_text_encoder import CTCTextEncoder
 
     data_dir = Path(config.train_bpe.data_dir)
@@ -30,6 +44,14 @@ def _write_corpus(config, corpus_path):
 
 @hydra.main(version_base=None, config_path="../configs", config_name="train_bpe")
 def main(config):
+    """
+    Builds the training corpus if needed and trains a new SentencePiece
+    tokenizer from it
+
+    Args:
+        config (DictConfig): Hydra config with the train_bpe settings,
+            such as corpus_path, model_prefix, and vocab_size
+    """
     import sentencepiece as spm
 
     corpus_path = Path(config.train_bpe.corpus_path)
